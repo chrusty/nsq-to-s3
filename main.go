@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
+	log "github.com/cihub/seelog"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -34,27 +36,6 @@ func init() {
 	flag.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 }
 
-type TailHandler struct {
-	totalMessages int
-	messagesShown int
-}
-
-func (th *TailHandler) HandleMessage(m *nsq.Message) error {
-	th.messagesShown++
-	_, err := os.Stdout.Write(m.Body)
-	if err != nil {
-		log.Fatalf("ERROR: failed to write to os.Stdout - %s", err)
-	}
-	_, err = os.Stdout.WriteString("\n")
-	if err != nil {
-		log.Fatalf("ERROR: failed to write to os.Stdout - %s", err)
-	}
-	if th.totalMessages > 0 && th.messagesShown >= th.totalMessages {
-		os.Exit(0)
-	}
-	return nil
-}
-
 func main() {
 	flag.Parse()
 
@@ -69,14 +50,17 @@ func main() {
 	}
 
 	if *topic == "" {
-		log.Fatal("--topic is required")
+		log.Warnf("--topic is required")
+		os.exit(1)
 	}
 
 	if len(nsqdTCPAddrs) == 0 && len(lookupdHTTPAddrs) == 0 {
-		log.Fatal("--nsqd-tcp-address or --lookupd-http-address required")
+		log.Warnf("--nsqd-tcp-address or --lookupd-http-address required")
+		os.exit(1)
 	}
 	if len(nsqdTCPAddrs) > 0 && len(lookupdHTTPAddrs) > 0 {
-		log.Fatal("use --nsqd-tcp-address or --lookupd-http-address not both")
+		log.Errorf("use --nsqd-tcp-address or --lookupd-http-address not both")
+		os.exit(1)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -91,25 +75,25 @@ func main() {
 	cfg.UserAgent = fmt.Sprintf("nsq_to_s3/%s go-nsq/%s", version.Binary, nsq.VERSION)
 	err := app.ParseOpts(cfg, consumerOpts)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	cfg.MaxInFlight = *maxInFlight
 
 	consumer, err := nsq.NewConsumer(*topic, *channel, cfg)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
-	consumer.AddHandler(&TailHandler{totalMessages: *totalMessages})
+	consumer.AddHandler(&InMemoryHandler{})
 
 	err = consumer.ConnectToNSQDs(nsqdTCPAddrs)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	err = consumer.ConnectToNSQLookupds(lookupdHTTPAddrs)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	for {
