@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -20,10 +18,14 @@ import (
 var (
 	showVersion = flag.Bool("version", false, "print version string")
 
-	topic         = flag.String("topic", "", "NSQ topic")
-	channel       = flag.String("channel", "", "NSQ channel")
-	maxInFlight   = flag.Int("max-in-flight", 200, "max number of messages to allow in flight")
-	totalMessages = flag.Int("n", 0, "total messages to show (will wait if starved)")
+	topic           = flag.String("topic", "", "NSQ topic")
+	channel         = flag.String("channel", "", "NSQ channel")
+	maxInFlight     = flag.Int("max-in-flight", 1000, "max number of messages to allow in flight (before flushing)")
+	maxInFlightTime = flag.Int("max-in-flight-time", 60, "max time to keep messages in flight (before flushing)")
+	bucketMessages  = flag.Int("bucket-messages", 0, "total number of messages to bucket")
+	bucketSeconds   = flag.Int("bucket-seconds", 600, "total time to bucket messages for (seconds)")
+	s3Bucket        = flag.String("s3bucket", "", "S3-bucket (and path) to store the output on (eg 's3://nsq-archive/live'")
+	storeStrings    = flag.Bool("storeStrings", true, "Store message bodies as strings (rather than bytes)")
 
 	consumerOpts     = app.StringArray{}
 	nsqdTCPAddrs     = app.StringArray{}
@@ -36,39 +38,71 @@ func init() {
 	flag.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 }
 
-func main() {
+// Process command-line arguments:
+func processArguments() bool {
+	// Make sure these log messages get out before this function ends:
+	defer log.Flush()
+
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("nsq_to_s3 v%s\n", version.Binary)
-		return
+		log.Infof("nsq-to-s3 v%s\n", version.Binary)
+		return true
+	}
+
+	if *s3Bucket == "" {
+		log.Warnf("--s3bucket is required")
+		return true
+	} else {
+		log.Infof("S3-Bucket: %v", *s3Bucket)
 	}
 
 	if *channel == "" {
 		rand.Seed(time.Now().UnixNano())
-		*channel = fmt.Sprintf("nsq_to_s3%06d#ephemeral", rand.Int()%999999)
+		*channel = fmt.Sprintf("nsq_to_s3-%06d#ephemeral", rand.Int()%999999)
+		log.Infof("Channel: %v", *channel)
 	}
 
 	if *topic == "" {
 		log.Warnf("--topic is required")
-		os.exit(1)
+		return true
+	} else {
+		log.Infof("Topic: %v", *topic)
 	}
 
 	if len(nsqdTCPAddrs) == 0 && len(lookupdHTTPAddrs) == 0 {
 		log.Warnf("--nsqd-tcp-address or --lookupd-http-address required")
-		os.exit(1)
+		return true
 	}
+
 	if len(nsqdTCPAddrs) > 0 && len(lookupdHTTPAddrs) > 0 {
-		log.Errorf("use --nsqd-tcp-address or --lookupd-http-address not both")
-		os.exit(1)
+		log.Warnf("use --nsqd-tcp-address or --lookupd-http-address not both")
+		return true
+	}
+
+	log.Infof("Bucket-size (messages): %v", *bucketMessages)
+	log.Infof("Bucket-size (seconds): %v", *bucketSeconds)
+	log.Infof("Max-in-flight (messages): %v", *maxInFlight)
+	log.Infof("Max-in-flight (seconds): %v", *maxInFlightTime)
+	log.Infof("Store-strings: %v", *storeStrings)
+
+	return false
+}
+
+func main() {
+	defer log.Flush()
+
+	argumentIssue := processArguments()
+	if argumentIssue {
+		os.Exit(1)
 	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Don't ask for more messages than we want
-	if *totalMessages > 0 && *totalMessages < *maxInFlight {
-		*maxInFlight = *totalMessages
+	if *bucketMessages > 0 && *bucketMessages < *maxInFlight {
+		*maxInFlight = *bucketMessages
 	}
 
 	cfg := nsq.NewConfig()
@@ -84,7 +118,15 @@ func main() {
 		panic(err)
 	}
 
-	consumer.AddHandler(&InMemoryHandler{})
+	messageHandler := &InMemoryHandler{
+		allTimeMessages:  0,
+		messagesInFlight: 0,
+		deDuper:          make(map[string]int),
+		messageBuffer:    make([]*nsq.Message, 0),
+		timeLastFlushed:  int(time.Now().Unix()),
+	}
+
+	consumer.AddHandler(messageHandler)
 
 	err = consumer.ConnectToNSQDs(nsqdTCPAddrs)
 	if err != nil {
@@ -102,6 +144,7 @@ func main() {
 			return
 		case <-sigChan:
 			consumer.Stop()
+			os.Exit(0)
 		}
 	}
 }
