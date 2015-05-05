@@ -24,8 +24,10 @@ var (
 	maxInFlightTime = flag.Int("max-in-flight-time", 60, "max time to keep messages in flight (before flushing)")
 	bucketMessages  = flag.Int("bucket-messages", 0, "total number of messages to bucket")
 	bucketSeconds   = flag.Int("bucket-seconds", 600, "total time to bucket messages for (seconds)")
-	s3Bucket        = flag.String("s3bucket", "", "S3-bucket (and path) to store the output on (eg 's3://nsq-archive/live'")
+	s3Bucket        = flag.String("s3bucket", "", "S3 bucket-name to store the output on (eg 'nsq-archive'")
+	s3Path          = flag.String("s3Path", "", "S3 path to store files under (eg '/nsq-archive'")
 	storeStrings    = flag.Bool("storeStrings", true, "Store message bodies as strings (rather than bytes)")
+	awsRegion       = flag.String("aws-region", "us-east-1", "The AWS region-name to connect to")
 
 	consumerOpts     = app.StringArray{}
 	nsqdTCPAddrs     = app.StringArray{}
@@ -85,6 +87,7 @@ func processArguments() bool {
 	log.Infof("Max-in-flight (messages): %v", *maxInFlight)
 	log.Infof("Max-in-flight (seconds): %v", *maxInFlightTime)
 	log.Infof("Store-strings: %v", *storeStrings)
+	log.Infof("aws-region: %v", *awsRegion)
 
 	return false
 }
