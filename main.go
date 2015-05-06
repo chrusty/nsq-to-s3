@@ -26,7 +26,7 @@ var (
 	s3Path                = flag.String("s3path", "", "S3 path to store files under (eg '/nsq-archive'")
 	awsRegion             = flag.String("awsregion", "us-east-1", "The AWS region-name to connect to")
 	batchMode             = flag.String("batchmode", "memory", "How to batch the messages between flushes [disk, memory, channel]")
-	messageBufferFileName = flag.String("bufferfile", "/tmp/nsq-to-s3.buffer", "Local file to buffer messages in between flushes to S3")
+	messageBufferFileName = flag.String("bufferfile", "", "Local file to buffer messages in between flushes to S3")
 
 	consumerOpts     = app.StringArray{}
 	nsqdTCPAddrs     = app.StringArray{}
@@ -40,14 +40,16 @@ func init() {
 }
 
 func main() {
+	// Make sure we flush the log before quitting:
 	defer log.Flush()
-	os.Remove(*messageBufferFileName)
 
+	// Process the arguments:
 	argumentIssue := processArguments()
 	if argumentIssue {
 		os.Exit(1)
 	}
 
+	// Intercept quit signals:
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -56,6 +58,7 @@ func main() {
 		*maxInFlight = *bucketMessages
 	}
 
+	// Set up the NSQ client:
 	cfg := nsq.NewConfig()
 	cfg.UserAgent = fmt.Sprintf("nsq_to_s3/%s go-nsq/%s", version.Binary, nsq.VERSION)
 	err := app.ParseOpts(cfg, consumerOpts)
@@ -120,7 +123,6 @@ func main() {
 			return
 		case <-sigChan:
 			consumer.Stop()
-			os.Remove(*messageBufferFileName)
 			os.Exit(0)
 		}
 	}
