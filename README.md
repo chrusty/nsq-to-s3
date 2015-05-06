@@ -52,8 +52,6 @@ As with batch-on-disk but all messages are kept in-memory between flushes to S3.
 ```
 nsq-to-s3 -s3bucket=hailo-cruft-live -topic=jstats.allingested -channel='nsq-to-s3#ephemeral' -lookupd-http-address=10.0.2.197:4161 -s3path=/nsq -awsregion=eu-west-1 -bucket-seconds=300 -max-in-flight=1000 -batchmode=disk
 ```
-> nsq-to-s3 -s3bucket=hailo-cruft-live -topic=jstats.allingested -channel='nsq-to-s3#ephemeral' -lookupd-http-address=10.0.2.197:4161 -s3path=/nsq -awsregion=eu-west-1 -bucket-seconds=300 -max-in-flight=1000 -batchmode=disk
-> prawn
 
 ## Bugs (current):
 * Dupes can still occur around flush boundaries
