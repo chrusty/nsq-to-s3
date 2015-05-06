@@ -67,7 +67,7 @@ func (handler *InMemoryHandler) FlushBuffer() error {
 
 	log.Debugf("Messages processed (since the beginning): %d", handler.allTimeMessages)
 
-	err := PrintMessages(handler.messageBuffer)
+	err := StoreMessages(handler.messageBuffer)
 	if err != nil {
 		log.Errorf("Unable to store messages! %v", err)
 		return err

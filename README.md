@@ -11,7 +11,6 @@ Stream an NSQ channel to S3
 * s3Bucket: The S3 bucket to store the files on (files will end up as s3Bucket/topic/YYYY/MM/DD/timestamp)
 * bucketSeconds: The time-bucket-size of each file you want to end up with on S3, if we don't hit bucketMessages first (eg 3600 will give you one file on S3 per-hour)
 * bucketMessages: Total number of messages to bucket (if bucketSeconds doesn't elapse first)
-* storeStrings: Store the message bodies as strings (not bytes)
 * consumerOpts: 
 
 ## Modes:

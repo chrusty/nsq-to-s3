@@ -35,8 +35,11 @@ func StoreMessages(messageBuffer []*nsq.Message) error {
 	if err != nil {
 		log.Errorf("Unable to authenticate to AWS! (%s) ...\n", err)
 		return err
+	} else {
+		log.Debugf("Authenticated to AWS")
 	}
 
+	log.Debugf("Connecting to AWS...")
 	// Make a new S3 connection:
 	s3Connection := s3.New(awsAuth, aws.Regions[*awsRegion])
 
@@ -62,7 +65,9 @@ func StoreMessages(messageBuffer []*nsq.Message) error {
 	// Upload the data:
 	err = s3Bucket.Put(fileName, fileData, contType, perm, *options)
 	if err != nil {
-		log.Errorf("Failed to put file on S3 (%v)", err)
+		log.Errorf("Failed to put file (%v) on S3 (%v)", fileName, err)
+	} else {
+		log.Infof("Stored file (%v) on s3", fileName)
 	}
 
 	return nil
