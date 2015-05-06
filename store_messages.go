@@ -2,39 +2,35 @@ package main
 
 import (
 	"fmt"
-	"github.com/bitly/go-nsq"
 	log "github.com/cihub/seelog"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/s3"
+	"os"
 	"time"
 )
 
 // Print messages to the screen:
-func PrintMessages(messageBuffer []*nsq.Message) error {
+func PrintMessages(fileData []byte) error {
 
 	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute())
 
 	log.Infof("Would store in '%v'", fileName)
 
-	for _, message := range messageBuffer {
-		log.Debugf("Message: %v", string(message.Body))
-	}
+	log.Debugf("Messages: %v", string(fileData))
 
 	return nil
 }
 
 // Store messages to S3:
-func StoreMessages(messageBuffer []*nsq.Message) error {
+func StoreMessages(fileData []byte) error {
 
-	var fileData = make([]byte, 0)
-
-	log.Infof("Storing %d messages...", len(messageBuffer))
+	log.Infof("Storing %d bytes...", len(fileData))
 
 	// Authenticate with AWS:
 	awsAuth, err := aws.EnvAuth()
 	if err != nil {
-		log.Errorf("Unable to authenticate to AWS! (%s) ...\n", err)
-		return err
+		log.Criticalf("Unable to authenticate to AWS! (%s) ...\n", err)
+		os.Exit(2)
 	} else {
 		log.Debugf("Authenticated to AWS")
 	}
@@ -57,15 +53,11 @@ func StoreMessages(messageBuffer []*nsq.Message) error {
 	// Build the filename we'll use for S3:
 	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute())
 
-	// Turn the message bodies into a []byte:
-	for _, message := range messageBuffer {
-		fileData = append(fileData, message.Body...)
-	}
-
 	// Upload the data:
 	err = s3Bucket.Put(fileName, fileData, contType, perm, *options)
 	if err != nil {
-		log.Errorf("Failed to put file (%v) on S3 (%v)", fileName, err)
+		log.Criticalf("Failed to put file (%v) on S3 (%v)", fileName, err)
+		os.Exit(2)
 	} else {
 		log.Infof("Stored file (%v) on s3", fileName)
 	}

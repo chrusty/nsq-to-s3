@@ -31,6 +31,11 @@ Stream an NSQ channel to S3
   * As with batch-on-disk but syncs to S3 every x seconds
   * Either overwrites the same file on S3, or piles up new ones
   * At the end of the time-bucket the interim files are removed from S3
+* "In-memory":
+  * As with batch-on-disk but keeps all messages in memory
 
-## Bugs:
+## Bugs (current):
 * Dupes can still occur around flush boundaries
+
+## Bugs (fixed):
+* -User can specify a non-existent AWS region-

@@ -3,30 +3,30 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/bitly/go-nsq"
+	"github.com/bitly/nsq/internal/app"
+	"github.com/bitly/nsq/internal/version"
 	log "github.com/cihub/seelog"
-	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/bitly/go-nsq"
-	"github.com/bitly/nsq/internal/app"
-	"github.com/bitly/nsq/internal/version"
 )
 
 var (
 	showVersion = flag.Bool("version", false, "print version string")
 
-	topic           = flag.String("topic", "", "NSQ topic")
-	channel         = flag.String("channel", "", "NSQ channel")
-	maxInFlight     = flag.Int("max-in-flight", 1000, "max number of messages to allow in flight (before flushing)")
-	maxInFlightTime = flag.Int("max-in-flight-time", 60, "max time to keep messages in flight (before flushing)")
-	bucketMessages  = flag.Int("bucket-messages", 0, "total number of messages to bucket")
-	bucketSeconds   = flag.Int("bucket-seconds", 600, "total time to bucket messages for (seconds)")
-	s3Bucket        = flag.String("s3bucket", "", "S3 bucket-name to store the output on (eg 'nsq-archive'")
-	s3Path          = flag.String("s3path", "", "S3 path to store files under (eg '/nsq-archive'")
-	awsRegion       = flag.String("awsregion", "us-east-1", "The AWS region-name to connect to")
+	topic                 = flag.String("topic", "", "NSQ topic")
+	channel               = flag.String("channel", "", "NSQ channel")
+	maxInFlight           = flag.Int("max-in-flight", 1000, "max number of messages to allow in flight (before flushing)")
+	maxInFlightTime       = flag.Int("max-in-flight-time", 60, "max time to keep messages in flight (before flushing)")
+	bucketMessages        = flag.Int("bucket-messages", 0, "total number of messages to bucket")
+	bucketSeconds         = flag.Int("bucket-seconds", 600, "total time to bucket messages for (seconds)")
+	s3Bucket              = flag.String("s3bucket", "", "S3 bucket-name to store the output on (eg 'nsq-archive'")
+	s3Path                = flag.String("s3path", "", "S3 path to store files under (eg '/nsq-archive'")
+	awsRegion             = flag.String("awsregion", "us-east-1", "The AWS region-name to connect to")
+	batchMode             = flag.String("batchmode", "memory", "How to batch the messages between flushes [disk, memory, channel]")
+	messageBufferFileName = flag.String("bufferfile", "/tmp/nsq-to-s3.buffer", "Local file to buffer messages in between flushes to S3")
 
 	consumerOpts     = app.StringArray{}
 	nsqdTCPAddrs     = app.StringArray{}
@@ -39,59 +39,9 @@ func init() {
 	flag.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 }
 
-// Process command-line arguments:
-func processArguments() bool {
-	// Make sure these log messages get out before this function ends:
-	defer log.Flush()
-
-	flag.Parse()
-
-	if *showVersion {
-		log.Infof("nsq-to-s3 v%s\n", version.Binary)
-		return true
-	}
-
-	if *s3Bucket == "" {
-		log.Warnf("--s3bucket is required")
-		return true
-	} else {
-		log.Infof("S3-Bucket: %v", *s3Bucket)
-	}
-
-	if *channel == "" {
-		rand.Seed(time.Now().UnixNano())
-		*channel = fmt.Sprintf("nsq_to_s3-%06d#ephemeral", rand.Int()%999999)
-		log.Infof("Channel: %v", *channel)
-	}
-
-	if *topic == "" {
-		log.Warnf("--topic is required")
-		return true
-	} else {
-		log.Infof("Topic: %v", *topic)
-	}
-
-	if len(nsqdTCPAddrs) == 0 && len(lookupdHTTPAddrs) == 0 {
-		log.Warnf("--nsqd-tcp-address or --lookupd-http-address required")
-		return true
-	}
-
-	if len(nsqdTCPAddrs) > 0 && len(lookupdHTTPAddrs) > 0 {
-		log.Warnf("use --nsqd-tcp-address or --lookupd-http-address not both")
-		return true
-	}
-
-	log.Infof("Bucket-size (messages): %v", *bucketMessages)
-	log.Infof("Bucket-size (seconds): %v", *bucketSeconds)
-	log.Infof("Max-in-flight (messages): %v", *maxInFlight)
-	log.Infof("Max-in-flight (seconds): %v", *maxInFlightTime)
-	log.Infof("aws-region: %v", *awsRegion)
-
-	return false
-}
-
 func main() {
 	defer log.Flush()
+	os.Remove(*messageBufferFileName)
 
 	argumentIssue := processArguments()
 	if argumentIssue {
@@ -119,15 +69,40 @@ func main() {
 		panic(err)
 	}
 
-	messageHandler := &InMemoryHandler{
-		allTimeMessages:  0,
-		messagesInFlight: 0,
-		deDuper:          make(map[string]int),
-		messageBuffer:    make([]*nsq.Message, 0),
-		timeLastFlushed:  int(time.Now().Unix()),
-	}
+	// See which mode we've been asked to run in:
+	switch *batchMode {
+	case "disk":
+		{
+			// On-disk:
+			messageHandler := &OnDiskHandler{
+				allTimeMessages:       0,
+				deDuper:               make(map[string]int),
+				inFlightMessages:      make([]*nsq.Message, 0),
+				timeLastFlushedToS3:   int(time.Now().Unix()),
+				timeLastFlushedToDisk: int(time.Now().Unix()),
+			}
 
-	consumer.AddHandler(messageHandler)
+			// Add the handler:
+			consumer.AddHandler(messageHandler)
+		}
+	case "channel":
+		{
+			panic("'channel' batch-mode isn't implemented yet!")
+		}
+	default:
+		{
+			// Default to in-memory:
+			messageHandler := &InMemoryHandler{
+				allTimeMessages:     0,
+				deDuper:             make(map[string]int),
+				messageBuffer:       make([]*nsq.Message, 0),
+				timeLastFlushedToS3: int(time.Now().Unix()),
+			}
+
+			// Add the handler:
+			consumer.AddHandler(messageHandler)
+		}
+	}
 
 	err = consumer.ConnectToNSQDs(nsqdTCPAddrs)
 	if err != nil {
@@ -145,6 +120,7 @@ func main() {
 			return
 		case <-sigChan:
 			consumer.Stop()
+			os.Remove(*messageBufferFileName)
 			os.Exit(0)
 		}
 	}

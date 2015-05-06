@@ -1,21 +1,19 @@
 package main
 
 import (
-	log "github.com/cihub/seelog"
-
 	"crypto/sha256"
 	"encoding/hex"
-	"time"
-
 	"github.com/bitly/go-nsq"
+	log "github.com/cihub/seelog"
+	"os"
+	"time"
 )
 
 type InMemoryHandler struct {
-	allTimeMessages  int64
-	messagesInFlight int
-	deDuper          map[string]int
-	messageBuffer    []*nsq.Message
-	timeLastFlushed  int
+	allTimeMessages     int64
+	deDuper             map[string]int
+	messageBuffer       []*nsq.Message
+	timeLastFlushedToS3 int
 }
 
 // Message handler:
@@ -33,11 +31,8 @@ func (handler *InMemoryHandler) HandleMessage(m *nsq.Message) error {
 
 	// See if we already have this message in the de-duper:
 	if _, ok := handler.deDuper[hashKey]; ok {
-		// log.Debugf("We already have this message - discarding dupe!")
 		m.Finish()
 	} else {
-		// log.Debugf("Adding message (%d) to the buffer...", len(handler.messageBuffer))
-
 		// Add it to the de-duper:
 		handler.deDuper[hashKey] = int(time.Now().Unix())
 
@@ -48,39 +43,40 @@ func (handler *InMemoryHandler) HandleMessage(m *nsq.Message) error {
 		m.Finish()
 	}
 
-	// Now see if we need to flush:
-	if len(handler.messageBuffer) == *bucketMessages {
-		log.Infof("Flushing buffer (buffer-size = bucketMessages / %d)...", *bucketMessages)
-		handler.FlushBuffer()
-	}
-
-	if int(time.Now().Unix())-handler.timeLastFlushed >= *bucketSeconds {
-		log.Infof("Flushing buffer (buffer-age >= bucketSeconds / %d)...", *bucketSeconds)
-		handler.FlushBuffer()
+	// See if we need to flush to S3:
+	if (len(handler.messageBuffer) == *bucketMessages) || (int(time.Now().Unix())-handler.timeLastFlushedToS3 >= *bucketSeconds) {
+		log.Infof("Flushing buffer to S3 ...")
+		handler.FlushBufferToS3()
 	}
 
 	return nil
 }
 
-// Message handler:
-func (handler *InMemoryHandler) FlushBuffer() error {
+// Flush the message-buffer:
+func (handler *InMemoryHandler) FlushBufferToS3() error {
 
 	log.Debugf("Messages processed (since the beginning): %d", handler.allTimeMessages)
 
-	err := StoreMessages(handler.messageBuffer)
-	if err != nil {
-		log.Errorf("Unable to store messages! %v", err)
-		return err
-	} else {
-		// Reset the de-duper:
-		handler.deDuper = make(map[string]int)
+	// A byte array to submit to S3:
+	var fileData []byte
 
-		// Reset the message-buffer:
-		handler.messageBuffer = make([]*nsq.Message, 0)
-
-		// Reset the timer:
-		handler.timeLastFlushed = int(time.Now().Unix())
-
-		return nil
+	// Turn the message bodies into a []byte:
+	for _, message := range handler.messageBuffer {
+		fileData = append(fileData, message.Body...)
 	}
+
+	// Store them on S3:
+	err := StoreMessages(fileData)
+	if err != nil {
+		log.Criticalf("Unable to store messages! %v", err)
+		os.Exit(2)
+	}
+
+	// Reset the handler:
+	handler.deDuper = make(map[string]int)
+	handler.messageBuffer = make([]*nsq.Message, 0)
+	handler.timeLastFlushedToS3 = int(time.Now().Unix())
+
+	return nil
+
 }
