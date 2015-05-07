@@ -47,7 +47,7 @@ As with batch-on-disk but all messages are kept in-memory between flushes to S3.
 
 ## Examples
 
-### Consuming a topic, buffering on disk, flushing in-flight at 1000 messages, flushing to S3 every 5 minutes:
+#### Consuming a topic, buffering on disk, flushing in-flight at 1000 messages, flushing to S3 every 5 minutes:
 ```
 nsq-to-s3 -s3bucket=nsq-archive -topic=firehose -channel='nsq-to-s3#ephemeral' -lookupd-http-address=10.0.0.2:4161 -s3path=/live-dumps/firehose -awsregion=eu-west-1 -bucket-seconds=300 -max-in-flight=1000 -batchmode=disk
 ```
