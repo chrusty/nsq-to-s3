@@ -107,16 +107,19 @@ func main() {
 		}
 	}
 
+	// Configure the NSQ connection with the list of NSQd addresses:
 	err = consumer.ConnectToNSQDs(nsqdTCPAddrs)
 	if err != nil {
 		panic(err)
 	}
 
+	// Configure the NSQ connection with the list of Lookupd HTTP addresses:
 	err = consumer.ConnectToNSQLookupds(lookupdHTTPAddrs)
 	if err != nil {
 		panic(err)
 	}
 
+	// Handle stop / quit events:
 	for {
 		select {
 		case <-consumer.StopChan:

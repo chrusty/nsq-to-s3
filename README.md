@@ -10,11 +10,11 @@ Stream an NSQ channel to S3
 * nsqd-tcp-address: A specific NSQ daemon to connect to
 * bucket-seconds: The time-bucket-size of each file you want to end up with on S3, if we don't hit bucketMessages first (eg 3600 will give you one file on S3 per-hour)
 * bucket-messages: Total number of messages to bucket (if bucketSeconds doesn't elapse first)
-* s3bucket: The S3 bucket to store the files on (files will end up as s3Bucket/topic/YYYY/MM/DD/HH/timestamp)
-* s3path
-* awsregion: 
-* batchmode: 
-* bufferfile: 
+* s3bucket: The S3 bucket to store the files on (eg "nsq-archive")
+* s3path: A path to store the archive files under (eg "/live-dumps")
+* awsregion: The name of the AWS region to connect to (should be the same region as your chosen S3 bucket is homed in)
+* batchmode: Which mode to run in [memory, disk, channel]
+* bufferfile: The name of a file to use as a local on-disk buffer between flushes to S3 (should be something durable)
 * consumerOpts: 
 
 ## Modes (current):
@@ -50,7 +50,7 @@ As with batch-on-disk but all messages are kept in-memory between flushes to S3.
 
 ### Consuming a topic, buffering on disk, flushing in-flight at 1000 messages, flushing to S3 every 5 minutes:
 ```
-nsq-to-s3 -s3bucket=hailo-cruft-live -topic=jstats.allingested -channel='nsq-to-s3#ephemeral' -lookupd-http-address=10.0.2.197:4161 -s3path=/nsq -awsregion=eu-west-1 -bucket-seconds=300 -max-in-flight=1000 -batchmode=disk
+nsq-to-s3 -s3bucket=nsq-archive -topic=firehose -channel='nsq-to-s3#ephemeral' -lookupd-http-address=10.0.0.2:4161 -s3path=/live-dumps/firehose -awsregion=eu-west-1 -bucket-seconds=300 -max-in-flight=1000 -batchmode=disk
 ```
 
 ## Bugs (current):
