@@ -6,13 +6,14 @@ import (
 	"github.com/bitly/go-nsq"
 	log "github.com/cihub/seelog"
 	"time"
+	"os"
 )
 
 type AbandonedChannelHandler struct {
-	allTimeMessages int64
-	deDuper         map[string]int
-	messageBuffer   []*nsq.Message
-	timeLastFlushed int
+	allTimeMessages     int64
+	deDuper             map[string]int
+	messageBuffer       []*nsq.Message
+	timeLastFlushedToS3 int
 }
 
 // Message handler:
@@ -42,41 +43,40 @@ func (handler *AbandonedChannelHandler) HandleMessage(m *nsq.Message) error {
 		m.Finish()
 	}
 
-	// Now see if we need to flush:
-	if len(handler.messageBuffer) == *bucketMessages {
-		log.Infof("Flushing buffer (buffer-size = bucketMessages / %d)...", *bucketMessages)
-		handler.FlushBuffer()
-	}
-
-	if int(time.Now().Unix())-handler.timeLastFlushed >= *bucketSeconds {
-		log.Infof("Flushing buffer (buffer-age >= bucketSeconds / %d)...", *bucketSeconds)
-		handler.FlushBuffer()
+	// See if we need to flush to S3:
+	if (len(handler.messageBuffer) == *bucketMessages) || (int(time.Now().Unix())-handler.timeLastFlushedToS3 >= *bucketSeconds) {
+		log.Infof("Flushing buffer to S3 ...")
+		handler.FlushBufferToS3()
 	}
 
 	return nil
 }
 
 // Flush the message-buffer:
-func (handler *AbandonedChannelHandler) FlushBuffer() error {
-
-	var fileData []byte
+func (handler *AbandonedChannelHandler) FlushBufferToS3() error {
 
 	log.Debugf("Messages processed (since the beginning): %d", handler.allTimeMessages)
 
+	// A byte array to submit to S3:
+	var fileData []byte
+
+	// Turn the message bodies into a []byte:
+	for _, message := range handler.messageBuffer {
+		fileData = append(fileData, message.Body...)
+	}
+
+	// Store them on S3:
 	err := StoreMessages(fileData)
 	if err != nil {
-		log.Errorf("Unable to store messages! %v", err)
-		return err
-	} else {
-		// Reset the de-duper:
-		handler.deDuper = make(map[string]int)
-
-		// Reset the message-buffer:
-		handler.messageBuffer = make([]*nsq.Message, 0)
-
-		// Reset the timer:
-		handler.timeLastFlushed = int(time.Now().Unix())
-
-		return nil
+		log.Criticalf("Unable to store messages! %v", err)
+		os.Exit(2)
 	}
+
+	// Reset the handler:
+	handler.deDuper = make(map[string]int)
+	handler.messageBuffer = make([]*nsq.Message, 0)
+	handler.timeLastFlushedToS3 = int(time.Now().Unix())
+
+	return nil
+
 }

@@ -27,7 +27,7 @@ func StoreMessages(fileData []byte) error {
 	log.Infof("Storing %d bytes...", len(fileData))
 
 	// Authenticate with AWS:
-	awsAuth, err := aws.EnvAuth()
+	awsAuth, err := aws.GetAuth("", "", "", time.Now())
 	if err != nil {
 		log.Criticalf("Unable to authenticate to AWS! (%s) ...\n", err)
 		os.Exit(2)
