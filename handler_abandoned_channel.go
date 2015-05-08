@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"github.com/bitly/go-nsq"
 	log "github.com/cihub/seelog"
-	"time"
 	"os"
+	"time"
 )
 
 type AbandonedChannelHandler struct {
