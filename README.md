@@ -55,6 +55,7 @@ nsq-to-s3 -s3bucket=nsq-archive -topic=firehose -channel='nsq-to-s3#ephemeral' -
 ## Bugs (current)
 * Dupes can still occur around flush boundaries
 * The timer for flushing to S3 is based on events arriving (not on absolute time). This means that he filenames/numbers will creep (just being pedantic)
+* Should optionally compress files for S3
 
 ## Bugs (fixed)
 * ~~User can specify a non-existent AWS region~~
