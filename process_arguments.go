@@ -99,6 +99,7 @@ func processArguments() bool {
 	log.Infof("Bucket-size (seconds): %v", *bucketSeconds)
 	log.Infof("Max-in-flight (messages): %v", *maxInFlight)
 	log.Infof("Max-in-flight (seconds): %v", *maxInFlightTime)
+	log.Infof("S3 file-extention: %v", *s3FileExtention)
 
 	return false
 }
