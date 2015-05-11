@@ -1,0 +1,9 @@
+Package: s3-to-nsq 
+Version: 1.0.0
+Architecture: amd64
+Essential: no
+Section: Applications
+Priority: optional
+Maintainer: devops@hailocab.com
+Installed-Size: 10000
+Description: NSQ to S3 ("stream" an NSQ topic to S3)

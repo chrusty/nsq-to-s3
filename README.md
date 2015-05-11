@@ -15,6 +15,7 @@ Stream an NSQ channel to S3
 * _awsregion:_ The name of the AWS region to connect to (should be the same region as your chosen S3 bucket is homed in)
 * _batchmode:_ Which mode to run in [memory, disk, channel]
 * _bufferfile:_ The name of a file to use as a local on-disk buffer between flushes to S3 (should be something durable)
+* _extention:_ Extention for files on S3
 
 ## Modes (current)
 NSQ-to-S3 can operate in several different modes, depending on your storage and/or durability requirements:

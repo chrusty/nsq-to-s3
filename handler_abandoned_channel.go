@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"github.com/bitly/go-nsq"
 	log "github.com/cihub/seelog"
+	"os"
 	"time"
 	"os"
 )

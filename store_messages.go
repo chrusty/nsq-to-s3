@@ -12,7 +12,7 @@ import (
 // Print messages to the screen:
 func PrintMessages(fileData []byte) error {
 
-	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute())
+	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v.%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), *s3FileExtention)
 
 	log.Infof("Would store in '%v'", fileName)
 
@@ -51,7 +51,7 @@ func StoreMessages(fileData []byte) error {
 	}
 
 	// Build the filename we'll use for S3:
-	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute())
+	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v.%v", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), *s3FileExtention)
 
 	// Upload the data:
 	err = s3Bucket.Put(fileName, fileData, contType, perm, *options)

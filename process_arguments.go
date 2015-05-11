@@ -75,7 +75,9 @@ func processArguments() bool {
 		{
 			log.Infof("Batch-mode: disk (messages will be stored on-disk between flushes)")
 			if *messageBufferFileName == "" {
-				*messageBufferFileName = "/tmp/nsq-to-s3." + *topic
+				*messageBufferFileName = "/tmp/nsq-to-s3." + *topic + ".gz"
+			} else {
+				*messageBufferFileName += ".gz"
 			}
 			log.Infof("Message-buffer-file: %v", *messageBufferFileName)
 		}
@@ -99,6 +101,7 @@ func processArguments() bool {
 	log.Infof("Bucket-size (seconds): %v", *bucketSeconds)
 	log.Infof("Max-in-flight (messages): %v", *maxInFlight)
 	log.Infof("Max-in-flight (seconds): %v", *maxInFlightTime)
+	log.Infof("S3 file-extention: %v", *s3FileExtention)
 
 	return false
 }
