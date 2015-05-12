@@ -85,10 +85,10 @@ func (handler *OnDiskHandler) FlushInFlightMessages() error {
 	if err != nil {
 		log.Criticalf("Unable to open buffer-file! (%v) %v", *messageBufferFileName, err)
 		os.Exit(2)
-	} else {		
-		// Make sure we Close() the file, no matter what:		
-		defer messageBufferFile.Close()		
- 	}
+	} else {
+		// Make sure we Close() the file, no matter what:
+		defer messageBufferFile.Close()
+	}
 
 	// Seek to the end of the file:
 	_, _ = messageBufferFile.Seek(0, os.SEEK_END)

@@ -63,6 +63,7 @@ func (handler *InMemoryHandler) FlushBufferToS3() error {
 	// Turn the message bodies into a []byte:
 	for _, message := range handler.messageBuffer {
 		fileData = append(fileData, message.Body...)
+		fileData = append(fileData, []byte("\n")...)
 	}
 
 	// Store them on S3:
