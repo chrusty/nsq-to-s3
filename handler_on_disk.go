@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/bitly/go-nsq"
@@ -86,18 +85,13 @@ func (handler *OnDiskHandler) FlushInFlightMessages() error {
 	if err != nil {
 		log.Criticalf("Unable to open buffer-file! (%v) %v", *messageBufferFileName, err)
 		os.Exit(2)
-	}
-
-	// GZIP the data going into the file:
-	gzipWriter := gzip.NewWriter(messageBufferFile)
+	} else {		
+		// Make sure we Close() the file, no matter what:		
+		defer messageBufferFile.Close()		
+ 	}
 
 	// Seek to the end of the file:
 	_, _ = messageBufferFile.Seek(0, os.SEEK_END)
-
-	// Make sure we Flush() and Close() before quitting for any reason:
-	defer gzipWriter.Flush()
-	defer gzipWriter.Close()
-	defer messageBufferFile.Close()
 
 	// Turn the message bodies into a []byte:
 	for _, message := range handler.inFlightMessages {
@@ -106,17 +100,13 @@ func (handler *OnDiskHandler) FlushInFlightMessages() error {
 	}
 
 	// Append messages to the bufferfile:
-	messageBufferSize, err := gzipWriter.Write(fileData)
+	messageBufferSize, err := messageBufferFile.Write(fileData)
 	if err != nil {
 		log.Criticalf("Unable to write to the buffer-file! (%v) %v", *messageBufferFileName, err)
 		os.Exit(2)
 	} else {
 		log.Debugf("Wrote %d bytes to disk", messageBufferSize)
 	}
-
-	gzipWriter.Flush()
-	gzipWriter.Close()
-	messageBufferFile.Close()
 
 	// Reset the handler:
 	handler.inFlightMessages = make([]*nsq.Message, 0)

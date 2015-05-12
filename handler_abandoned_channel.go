@@ -7,7 +7,6 @@ import (
 	log "github.com/cihub/seelog"
 	"os"
 	"time"
-	"os"
 )
 
 type AbandonedChannelHandler struct {

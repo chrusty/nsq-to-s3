@@ -27,7 +27,7 @@ var (
 	awsRegion             = flag.String("awsregion", "us-east-1", "The AWS region-name to connect to")
 	batchMode             = flag.String("batchmode", "memory", "How to batch the messages between flushes [disk, memory, channel]")
 	messageBufferFileName = flag.String("bufferfile", "", "Local file to buffer messages in between flushes to S3")
-	s3FileExtention       = flag.String("extention", "txt.gz", "Extention for files on S3")
+	s3FileExtention       = flag.String("extention", "txt", "Extention for files on S3")
 
 	consumerOpts     = app.StringArray{}
 	nsqdTCPAddrs     = app.StringArray{}
