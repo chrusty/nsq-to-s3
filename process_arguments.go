@@ -3,11 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/bitly/nsq/internal/version"
 	log "github.com/cihub/seelog"
 	"github.com/goamz/goamz/aws"
 	"math/rand"
 	"time"
+)
+
+const (
+	binaryVersion = "1.0.2"
 )
 
 // Process command-line arguments:
@@ -21,7 +24,7 @@ func processArguments() bool {
 
 	// See if we've been asked to just print the version and exit:
 	if *showVersion {
-		log.Infof("nsq-to-s3 v%s\n", version.Binary)
+		log.Infof("nsq-to-s3 v%s\n", binaryVersion)
 		return true
 	}
 
@@ -30,7 +33,7 @@ func processArguments() bool {
 		log.Warnf("--s3bucket is required")
 		return true
 	} else {
-		log.Infof("S3-Bucket: %v", *s3Bucket)
+		log.Infof("S3-Bucket: %v%v", *s3Bucket, *s3Path)
 	}
 
 	// See if the user has provided a channel name, or invent a random one:
@@ -75,9 +78,7 @@ func processArguments() bool {
 		{
 			log.Infof("Batch-mode: disk (messages will be stored on-disk between flushes)")
 			if *messageBufferFileName == "" {
-				*messageBufferFileName = "/tmp/nsq-to-s3." + *topic + ".gz"
-			} else {
-				*messageBufferFileName += ".gz"
+				*messageBufferFileName = "/tmp/nsq-to-s3." + *topic
 			}
 			log.Infof("Message-buffer-file: %v", *messageBufferFileName)
 		}
