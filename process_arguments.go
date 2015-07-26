@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	binaryVersion = "1.0.2"
+	binaryVersion = "1.1.0"
 )
 
 // Process command-line arguments:
