@@ -59,15 +59,15 @@ func StoreMessages(fileData []byte) error {
 	}
 
 	// Build the filename we'll use for S3:
-	fileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v.%v.gz", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), *s3FileExtention)
+	remoteFileName := fmt.Sprintf("%v/%v/%v/%v/%v/%v.%v.gz", *s3Path, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), *s3FileExtention)
 
 	// Upload the data:
-	err = s3Bucket.Put(fileName, fileDataBytes.Bytes(), contType, perm, *options)
+	err = s3Bucket.Put(remoteFileName, fileDataBytes.Bytes(), contType, perm, *options)
 	if err != nil {
-		log.Criticalf("Failed to put file (%v) on S3 (%v)", fileName, err)
+		log.Criticalf("Failed to put file (%v) on S3 (%v)", remoteFileName, err)
 		os.Exit(2)
 	} else {
-		log.Infof("Stored file (%v) on s3", fileName)
+		log.Infof("Stored file (%v) on s3", remoteFileName)
 	}
 
 	return nil

@@ -120,15 +120,8 @@ func (handler *OnDiskHandler) FlushBufferToS3() error {
 
 	log.Debugf("Messages processed (since the beginning): %d", handler.allTimeMessages)
 
-	// Read the messages from disk:
-	fileData, err := ioutil.ReadFile(*messageBufferFileName)
-	if err != nil {
-		log.Criticalf("Unable to read buffer-file! (%v) %v", *messageBufferFileName, err)
-		os.Exit(2)
-	}
-
 	// Store them on S3:
-	err = StoreMessages(fileData)
+	err = StoreMultiPartFile(*messageBufferFileName)
 	if err != nil {
 		log.Criticalf("Unable to store messages! %v", err)
 		os.Exit(2)
