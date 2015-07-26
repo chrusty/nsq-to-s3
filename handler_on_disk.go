@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/bitly/go-nsq"
 	log "github.com/cihub/seelog"
-	"io/ioutil"
 	"os"
 	"time"
 )
@@ -99,14 +100,23 @@ func (handler *OnDiskHandler) FlushInFlightMessages() error {
 		fileData = append(fileData, []byte("\n")...)
 	}
 
+	// Set up gzip-writer:
+	gzWriter := gzip.NewWriter(messageBufferFile)
+	fileWriter := bufio.NewWriter(gzWriter)
+
 	// Append messages to the bufferfile:
-	messageBufferSize, err := messageBufferFile.Write(fileData)
+	messageBufferSize, err := fileWriter.Write(fileData)
 	if err != nil {
 		log.Criticalf("Unable to write to the buffer-file! (%v) %v", *messageBufferFileName, err)
 		os.Exit(2)
 	} else {
 		log.Debugf("Wrote %d bytes to disk", messageBufferSize)
 	}
+
+	// Close the writers and file:
+	fileWriter.Flush()
+	gzWriter.Close()
+	messageBufferFile.Close()
 
 	// Reset the handler:
 	handler.inFlightMessages = make([]*nsq.Message, 0)
@@ -121,7 +131,7 @@ func (handler *OnDiskHandler) FlushBufferToS3() error {
 	log.Debugf("Messages processed (since the beginning): %d", handler.allTimeMessages)
 
 	// Store them on S3:
-	err = StoreMultiPartFile(*messageBufferFileName)
+	err := StoreMultiPartFile(*messageBufferFileName)
 	if err != nil {
 		log.Criticalf("Unable to store messages! %v", err)
 		os.Exit(2)

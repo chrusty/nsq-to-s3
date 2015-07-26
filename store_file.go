@@ -1,15 +1,16 @@
 package main
 
 import (
-	"bytes"
-	"bufio"
-	"compress/gzip"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/s3"
 	"os"
 	"time"
+)
+
+const (
+	fileChunkSize = 5242880 // 5MB in bytes
 )
 
 // Store multi-part file (avoids blowing the memory by loading a huge file):
@@ -24,7 +25,7 @@ func StoreMultiPartFile(localFileName string) error {
 	awsAuth, err := aws.GetAuth("", "", "", time.Now())
 	if err != nil {
 		log.Criticalf("Unable to authenticate to AWS! (%s) ...\n", err)
-		os.Exit(2)
+		return err
 	} else {
 		log.Debugf("Authenticated to AWS")
 	}
@@ -39,67 +40,37 @@ func StoreMultiPartFile(localFileName string) error {
 	// Prepare arguments for the call to store messages on S3:
 	contType := "text/plain"
 	perm := s3.BucketOwnerFull
-	options := &s3.Options{
-		SSE:  false,
-		Meta: nil,
-	}
 
 	// Get a multi-part handler:
 	multiPartHandler, err := s3Bucket.InitMulti(remoteFileName, contType, perm)
 	if err != nil {
 		log.Criticalf("Failed to get a multi-part handler (%v) on S3 (%v)", remoteFileName, err)
-		os.Exit(2)
+		return err
 	}
 
-    file, err := os.Open(fileToBeUploaded)
-
-         if err != nil {
-                 fmt.Println(err)
-                 os.Exit(1)
-         }
-
-         defer file.Close()
-
-         fileInfo, _ := file.Stat()
-         var fileSize int64 = fileInfo.Size()
-         bytes := make([]byte, fileSize)
-
-         // read into buffer
-         buffer := bufio.NewReader(file)
-         _, err = buffer.Read(bytes)
-
-         // then we need to determine the file type
-         // see https://www.socketloop.com/tutorials/golang-how-to-verify-uploaded-file-is-image-or-allowed-file-types
-
-         filetype := http.DetectContentType(bytes)
-
-         // set up for multipart upload
-         multi, err := bucket.InitMulti(s3path, filetype, s3.ACL("public-read"))
-
-         if err != nil {
-                 fmt.Println(err)
-                 os.Exit(1)
-         }
-
-         // this is for PutPart ( see https://godoc.org/launchpad.net/goamz/s3#Multi.PutPart)
-
-         // calculate the number of parts by dividing up the file size by 5MB
-         const fileChunk = 5242880 // 5MB in bytes
-
-         parts, err := multi.PutAll(file, fileChunk)
-
-         if err != nil {
-                 fmt.Println(err)
-                 os.Exit(1)
-         }
-
-         err = multi.Complete(parts)
-
-
-
-	 else {
-		log.Infof("Stored file (%v) on s3", remoteFileName)
+	// Open the file:
+	localFile, err := os.Open(localFileName)
+	defer localFile.Close()
+	if err != nil {
+		log.Errorf("Coudln't open file (%v): %v", localFileName, err)
+		return err
 	}
+
+	// Calculate the number of parts by dividing the file-size:
+	parts, err := multiPartHandler.PutAll(localFile, fileChunkSize)
+	if err != nil {
+		log.Errorf("Coudln't perform multi-part S3 upload (%v): %v", remoteFileName, err)
+		return err
+	}
+
+	// Now finish the upload:
+	err = multiPartHandler.Complete(parts)
+	if err != nil {
+		log.Errorf("Coudln't complete multi-part S3 upload (%v): %v", remoteFileName, err)
+		return err
+	}
+
+	log.Infof("Stored file (%v) on s3", remoteFileName)
 
 	return nil
 }

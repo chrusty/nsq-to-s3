@@ -23,7 +23,7 @@ func PrintMessages(fileData []byte) error {
 	return nil
 }
 
-// Store messages to S3:
+// Store messages (gzip-compressed) to S3:
 func StoreMessages(fileData []byte) error {
 
 	// Something to compress the fileData into:

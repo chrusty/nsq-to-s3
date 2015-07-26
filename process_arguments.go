@@ -78,7 +78,7 @@ func processArguments() bool {
 		{
 			log.Infof("Batch-mode: disk (messages will be stored on-disk between flushes)")
 			if *messageBufferFileName == "" {
-				*messageBufferFileName = "/tmp/nsq-to-s3." + *topic
+				*messageBufferFileName = "/tmp/nsq-to-s3.gz" + *topic
 			}
 			log.Infof("Message-buffer-file: %v", *messageBufferFileName)
 		}
